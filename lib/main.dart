@@ -119,10 +119,10 @@ class MainApp extends ConsumerWidget {
           controller: ref.watch(
             scrollNotifierProvider.select((s) => s.controller),
           ),
-          child: Column(
+          child: const Column(
             children: [
-              const FirstView(),
-              const IntroSection(),
+              FirstView(),
+              IntroSection(),
               // VideoCarouselSection(videos: sampleVideos),
               VideoCarouselSection(
                 videos: [
@@ -149,9 +149,9 @@ class MainApp extends ConsumerWidget {
                 ],
               ),
               // const VideoSection(),
-              const GallerySection(),
-              const JoinUsSection(),
-              const Footer(),
+              GallerySection(),
+              JoinUsSection(),
+              Footer(),
             ],
           ),
         ),
