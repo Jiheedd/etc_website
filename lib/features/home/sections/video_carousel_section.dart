@@ -8,27 +8,25 @@ import 'package:rxdart/rxdart.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class VideoItem {
+  const VideoItem({required this.url, required this.thumbnail});
   final String url;
   final String thumbnail;
-
-  const VideoItem({required this.url, required this.thumbnail});
 }
 
 // Fixed size video container widget
 class FixedVideoContainer extends StatelessWidget {
-  final Widget child;
-  final bool isMain;
-
   const FixedVideoContainer({
     super.key,
     required this.child,
     required this.isMain,
   });
+  final Widget child;
+  final bool isMain;
 
   // Fixed video dimensions - these never change
-  static const double videoWidth = 280.0;
-  static const double videoHeight = 498.0; // 9:16 aspect ratio
-  static const double spacing = 5.0;
+  static const videoWidth = 280.0;
+  static const videoHeight = 498.0; // 9:16 aspect ratio
+  static const spacing = 5.0;
 
   @override
   Widget build(BuildContext context) {
@@ -46,14 +44,13 @@ class FixedVideoContainer extends StatelessWidget {
 
 // Sound control widget - always in top-right corner
 class VideoSoundControl extends StatelessWidget {
-  final bool isMuted;
-  final VoidCallback onToggleMute;
-
   const VideoSoundControl({
     super.key,
     required this.isMuted,
     required this.onToggleMute,
   });
+  final bool isMuted;
+  final VoidCallback onToggleMute;
 
   @override
   Widget build(BuildContext context) {
@@ -81,12 +78,11 @@ class VideoSoundControl extends StatelessWidget {
 
 // Fullscreen control widget - always in top-left corner
 class VideoFullscreenControl extends StatelessWidget {
-  final VoidCallback onFullscreen;
-
   const VideoFullscreenControl({
     super.key,
     required this.onFullscreen,
   });
+  final VoidCallback onFullscreen;
 
   @override
   Widget build(BuildContext context) {
@@ -114,19 +110,18 @@ class VideoFullscreenControl extends StatelessWidget {
 
 // Play/Pause overlay widget
 class VideoPlayPauseOverlay extends StatelessWidget {
-  final bool isVisible;
-
   const VideoPlayPauseOverlay({
     super.key,
     required this.isVisible,
   });
+  final bool isVisible;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       opacity: isVisible ? 1 : 0,
       duration: const Duration(milliseconds: 200),
-      child: Container(
+      child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.3),
           borderRadius: BorderRadius.circular(16),
@@ -142,21 +137,20 @@ class VideoPlayPauseOverlay extends StatelessWidget {
 }
 
 class VideoCarouselSection extends StatefulWidget {
-  final List<VideoItem> videos;
-  final Duration autoPlayDelay;
-
   const VideoCarouselSection({
     super.key,
     required this.videos,
     this.autoPlayDelay = const Duration(milliseconds: 500),
   });
+  final List<VideoItem> videos;
+  final Duration autoPlayDelay;
 
   @override
   State<VideoCarouselSection> createState() => _VideoCarouselSectionState();
 }
 
 class _VideoCarouselSectionState extends State<VideoCarouselSection> {
-  late PageController _pageController;
+  PageController? _pageController;
   late final BehaviorSubject<int> _currentIndex$;
   late final BehaviorSubject<bool> _muted$;
   late final BehaviorSubject<bool> _isPlaying$;
@@ -164,9 +158,9 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
   VideoPlayerController? _activeController;
   Timer? _autoPlayTimer;
   StreamSubscription? _videoEndSubscription;
-  bool _isInitializing = false;
-  bool _userInteracted = false;
-  int _visibleVideosCount = 3;
+  var _isInitializing = false;
+  var _userInteracted = false;
+  var _visibleVideosCount = 3;
   double _lastScreenWidth = 0;
 
   @override
@@ -189,27 +183,35 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
 
     _pageController = PageController(
       viewportFraction: _calculateViewportFraction(screenWidth),
-      initialPage: 0,
     );
+
+    // Trigger a rebuild after initialization
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _updateLayoutForScreenSize(double screenWidth) {
-    if ((screenWidth - _lastScreenWidth).abs() < 50) return; // Avoid frequent updates
+    if ((screenWidth - _lastScreenWidth).abs() < 50) {
+      return; // Avoid frequent updates
+    }
 
-    final videoWidth = FixedVideoContainer.videoWidth;
-    final spacing = FixedVideoContainer.spacing * 2;
+    const videoWidth = FixedVideoContainer.videoWidth;
+    const spacing = FixedVideoContainer.spacing * 2;
 
     // Calculate how many videos can fit with padding
-    int maxVideos = ((screenWidth - 60) / (videoWidth + spacing)).floor(); // 60 for safe margins
+    var maxVideos = ((screenWidth - 60) / (videoWidth + spacing))
+        .floor(); // 60 for safe margins
     _visibleVideosCount = maxVideos.clamp(3, 5);
     _lastScreenWidth = screenWidth;
 
-    debugPrint('Screen: ${screenWidth.toInt()}px → ${_visibleVideosCount} videos');
+    debugPrint(
+        'Screen: ${screenWidth.toInt()}px → $_visibleVideosCount videos');
   }
 
   double _calculateViewportFraction(double screenWidth) {
-    final videoWidth = FixedVideoContainer.videoWidth;
-    final spacing = FixedVideoContainer.spacing * 2;
+    const videoWidth = FixedVideoContainer.videoWidth;
+    const spacing = FixedVideoContainer.spacing * 2;
     return (videoWidth + spacing) / screenWidth;
   }
 
@@ -284,7 +286,7 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     final currentIndex = _currentIndex$.value;
     final nextIndex = (currentIndex + 1) % widget.videos.length;
 
-    _pageController.animateToPage(
+    _pageController!.animateToPage(
       nextIndex,
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
@@ -304,6 +306,40 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
         _initializeCurrentVideo();
       }
     });
+  }
+
+  void _startAutoPlay() {
+    if (_autoPlayTimer != null) return;
+
+    _autoPlayTimer = Timer.periodic(widget.autoPlayDelay, (timer) {
+      if (_activeController == null ||
+          !_activeController!.value.isInitialized) {
+        return;
+      }
+
+      if (_activeController!.value.isPlaying) return;
+
+      _togglePlayPause();
+    });
+  }
+
+  void _stopAutoPlay() {
+    _autoPlayTimer?.cancel();
+    _autoPlayTimer = null;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _startAutoPlay();
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoCarouselSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videos != widget.videos) {
+      _initializeCurrentVideo();
+    }
   }
 
   void _togglePlayPause() {
@@ -332,7 +368,6 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
 
     showDialog(
       context: context,
-      barrierDismissible: true,
       barrierColor: Colors.black87,
       builder: (context) => FullscreenVideoOverlay(
         controller: _activeController!,
@@ -347,7 +382,7 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
       _togglePlayPause();
     } else {
       _userInteracted = true;
-      _pageController.animateToPage(
+      _pageController!.animateToPage(
         index,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
@@ -359,7 +394,7 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
   void dispose() {
     _autoPlayTimer?.cancel();
     _disposeActiveController();
-    _pageController.dispose();
+    _pageController?.dispose();
     _currentIndex$.close();
     _muted$.close();
     _isPlaying$.close();
@@ -368,7 +403,17 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
 
   @override
   Widget build(BuildContext context) {
-    const double height = FixedVideoContainer.videoHeight + 20;
+    const height = FixedVideoContainer.videoHeight + 20;
+
+    // Show loading indicator if page controller is not initialized yet
+    if (_pageController == null) {
+      return const SizedBox(
+        height: height,
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -381,14 +426,16 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
 
               // Recreate PageController with new viewport fraction
               final oldController = _pageController;
-              final currentPage = oldController.hasClients ? oldController.page?.round() ?? 0 : 0;
+              final currentPage = oldController?.hasClients == true
+                  ? oldController!.page?.round() ?? 0
+                  : 0;
 
               _pageController = PageController(
                 viewportFraction: _calculateViewportFraction(currentWidth),
                 initialPage: currentPage,
               );
 
-              oldController.dispose();
+              oldController?.dispose();
               setState(() {});
             }
           });
@@ -414,7 +461,7 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
                 final currentIndex = snapshot.data ?? 0;
 
                 return PageView.builder(
-                  controller: _pageController,
+                  controller: _pageController!,
                   onPageChanged: _onPageChanged,
                   itemCount: widget.videos.length,
                   physics: const BouncingScrollPhysics(),
@@ -433,24 +480,28 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
                               // Video or thumbnail - ALWAYS fills the container completely
                               Positioned.fill(
                                 child: isMain &&
-                                    _activeController != null &&
-                                    _activeController!.value.isInitialized
+                                        _activeController != null &&
+                                        _activeController!.value.isInitialized
                                     ? FittedBox(
-                                  fit: BoxFit.cover,
-                                  child: SizedBox(
-                                    width: _activeController!.value.size.width,
-                                    height: _activeController!.value.size.height,
-                                    child: VideoPlayer(_activeController!),
-                                  ),
-                                )
+                                        fit: BoxFit.cover,
+                                        child: SizedBox(
+                                          width: _activeController!
+                                              .value.size.width,
+                                          height: _activeController!
+                                              .value.size.height,
+                                          child:
+                                              VideoPlayer(_activeController!),
+                                        ),
+                                      )
                                     : Container(
-                                  decoration: BoxDecoration(
-                                    image: DecorationImage(
-                                      image: NetworkImage(video.thumbnail),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
+                                        decoration: BoxDecoration(
+                                          image: DecorationImage(
+                                            image:
+                                                NetworkImage(video.thumbnail),
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
                               ),
 
                               // Play/Pause overlay - centered
@@ -493,7 +544,8 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
                                 const Positioned.fill(
                                   child: Center(
                                     child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   ),
                                 ),
@@ -515,16 +567,15 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
 
 // Facebook-style fullscreen video overlay
 class FullscreenVideoOverlay extends StatefulWidget {
-  final VideoPlayerController controller;
-  final bool isMuted;
-  final VoidCallback onToggleMute;
-
   const FullscreenVideoOverlay({
     super.key,
     required this.controller,
     required this.isMuted,
     required this.onToggleMute,
   });
+  final VideoPlayerController controller;
+  final bool isMuted;
+  final VoidCallback onToggleMute;
 
   @override
   State<FullscreenVideoOverlay> createState() => _FullscreenVideoOverlayState();
@@ -532,7 +583,7 @@ class FullscreenVideoOverlay extends StatefulWidget {
 
 class _FullscreenVideoOverlayState extends State<FullscreenVideoOverlay>
     with SingleTickerProviderStateMixin {
-  bool _showControls = true;
+  var _showControls = true;
   Timer? _hideControlsTimer;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -548,7 +599,7 @@ class _FullscreenVideoOverlayState extends State<FullscreenVideoOverlay>
 
     _scaleAnimation = Tween<double>(
       begin: 0.8,
-      end: 1.0,
+      end: 1,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeOutBack,
@@ -596,10 +647,7 @@ class _FullscreenVideoOverlayState extends State<FullscreenVideoOverlay>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // Check if tap is outside the video area
-        _toggleControls();
-      },
+      onTap: _toggleControls,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: AnimatedBuilder(
@@ -687,7 +735,9 @@ class _FullscreenVideoOverlayState extends State<FullscreenVideoOverlay>
                                       borderRadius: BorderRadius.circular(24),
                                     ),
                                     child: Icon(
-                                      widget.isMuted ? Icons.volume_off : Icons.volume_up,
+                                      widget.isMuted
+                                          ? Icons.volume_off
+                                          : Icons.volume_up,
                                       color: Colors.white,
                                       size: 24,
                                     ),

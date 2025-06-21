@@ -14,11 +14,10 @@ import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'footer.dart';
-import 'features/home/sections/intro_section.dart';
-import 'features/home/sections/video_section.dart';
 import 'features/home/sections/gallery_section.dart';
+import 'features/home/sections/intro_section.dart';
 import 'features/home/sections/join_us_section.dart';
+import 'footer.dart';
 
 void main() {
   Get.put(LanguageController());

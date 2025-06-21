@@ -17,9 +17,7 @@ class VideoSection extends ConsumerWidget {
       videoId: 'qTCd0H0vhbs',
       autoPlay: true,
       params: const YoutubePlayerParams(
-        showControls: true,
         showFullscreenButton: true,
-        playsInline: true,
       ),
     );
 
@@ -37,7 +35,7 @@ class VideoSection extends ConsumerWidget {
         });
 
         return Container(
-          key: ValueKey(Section.video),
+          key: const ValueKey(Section.video),
           padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
           color: Theme.of(context).colorScheme.surface,
           child: Column(
@@ -64,7 +62,7 @@ class VideoSection extends ConsumerWidget {
               Text(
                 'video_subtitle'.tr,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onBackground,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                 textAlign: TextAlign.center,
               ),

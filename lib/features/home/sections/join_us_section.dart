@@ -19,14 +19,14 @@ class JoinUsSection extends ConsumerWidget {
           if (box != null) {
             final offset = box.localToGlobal(Offset.zero).dy;
             ref.read(scrollNotifierProvider.notifier).updateSectionPosition(
-              section: Section.joinUs,
-              dy: offset,
-            );
+                  section: Section.joinUs,
+                  dy: offset,
+                );
           }
         });
 
         return Container(
-          key: ValueKey(Section.joinUs),
+          key: const ValueKey(Section.joinUs),
           padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
           color: Theme.of(context).colorScheme.surface,
           child: Column(
@@ -34,9 +34,9 @@ class JoinUsSection extends ConsumerWidget {
               Text(
                 'join_us_title'.tr,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
               ),
               const SizedBox(height: 40),
               SizedBox(

@@ -3,11 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class GallerySlider extends StatefulWidget {
-  final List<GalleryItem> items;
-  final double height;
-  final double itemWidth;
-  final double itemSpacing;
-
   const GallerySlider({
     super.key,
     required this.items,
@@ -15,6 +10,10 @@ class GallerySlider extends StatefulWidget {
     this.itemWidth = 300,
     this.itemSpacing = 12,
   });
+  final List<GalleryItem> items;
+  final double height;
+  final double itemWidth;
+  final double itemSpacing;
 
   @override
   State<GallerySlider> createState() => _GallerySliderState();
@@ -22,7 +21,7 @@ class GallerySlider extends StatefulWidget {
 
 class _GallerySliderState extends State<GallerySlider> {
   late final PageController _pageController;
-  int _currentIndex = 0;
+  var _currentIndex = 0;
 
   @override
   void initState() {
@@ -72,22 +71,21 @@ class _GallerySliderState extends State<GallerySlider> {
 }
 
 class _GalleryItem extends StatefulWidget {
-  final GalleryItem item;
-  final double width;
-  final VoidCallback onTap;
-
   const _GalleryItem({
     required this.item,
     required this.width,
     required this.onTap,
   });
+  final GalleryItem item;
+  final double width;
+  final VoidCallback onTap;
 
   @override
   State<_GalleryItem> createState() => _GalleryItemState();
 }
 
 class _GalleryItemState extends State<_GalleryItem> {
-  bool _isHovered = false;
+  var _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -157,14 +155,13 @@ class _GalleryItemState extends State<_GalleryItem> {
 }
 
 class GalleryFullscreenView extends StatefulWidget {
-  final List<GalleryItem> items;
-  final int initialIndex;
-
   const GalleryFullscreenView({
     super.key,
     required this.items,
     required this.initialIndex,
   });
+  final List<GalleryItem> items;
+  final int initialIndex;
 
   @override
   State<GalleryFullscreenView> createState() => _GalleryFullscreenViewState();
@@ -173,7 +170,7 @@ class GalleryFullscreenView extends StatefulWidget {
 class _GalleryFullscreenViewState extends State<GalleryFullscreenView> {
   late int _currentIndex;
   late final PageController _pageController;
-  bool _isRTL = false;
+  var _isRTL = false;
 
   @override
   void initState() {
@@ -272,15 +269,14 @@ class _GalleryFullscreenViewState extends State<GalleryFullscreenView> {
 }
 
 class _NavigationArrow extends StatelessWidget {
-  final bool isLeft;
-  final VoidCallback onTap;
-  final double width;
-
   const _NavigationArrow({
     required this.isLeft,
     required this.onTap,
     required this.width,
   });
+  final bool isLeft;
+  final VoidCallback onTap;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -318,11 +314,10 @@ class _NavigationArrow extends StatelessWidget {
 }
 
 class GalleryItem {
-  final String imagePath;
-  final String title;
-
   const GalleryItem({
     required this.imagePath,
     required this.title,
   });
+  final String imagePath;
+  final String title;
 }

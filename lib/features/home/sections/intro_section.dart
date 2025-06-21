@@ -24,13 +24,11 @@ class IntroSection extends ConsumerWidget {
         });
 
         return Container(
-          key: ValueKey(Section.intro),
+          key: const ValueKey(Section.intro),
           padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
           child: ResponsiveRowColumn(
             rowMainAxisAlignment: MainAxisAlignment.center,
-            rowCrossAxisAlignment: CrossAxisAlignment.center,
             columnMainAxisAlignment: MainAxisAlignment.center,
-            columnCrossAxisAlignment: CrossAxisAlignment.center,
             layout: ResponsiveBreakpoints.of(context).largerThan(MOBILE)
                 ? ResponsiveRowColumnType.ROW
                 : ResponsiveRowColumnType.COLUMN,
@@ -38,7 +36,7 @@ class IntroSection extends ConsumerWidget {
               ResponsiveRowColumnItem(
                 rowFlex: 1,
                 child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -57,7 +55,7 @@ class IntroSection extends ConsumerWidget {
                         'intro_subtitle'.tr,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                               height: 1.6,
-                              color: Theme.of(context).colorScheme.onBackground,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                       ),
                       const SizedBox(height: 16),
@@ -67,7 +65,7 @@ class IntroSection extends ConsumerWidget {
                               height: 1.6,
                               color: Theme.of(context)
                                   .colorScheme
-                                  .onBackground
+                                  .onSurface
                                   .withOpacity(0.8),
                             ),
                       ),
@@ -78,13 +76,14 @@ class IntroSection extends ConsumerWidget {
               ResponsiveRowColumnItem(
                 rowFlex: 1,
                 child: Container(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24),
                   child: Image.asset(
                     'assets/images/gallery1.png',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       height: 300,
-                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: const Center(
                         child: Icon(Icons.image_not_supported, size: 48),
                       ),

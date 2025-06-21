@@ -29,7 +29,7 @@ class GallerySection extends ConsumerWidget {
         return Container(
           key: const ValueKey(Section.gallery),
           padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
-          color: Theme.of(context).colorScheme.background,
+          color: Theme.of(context).colorScheme.surface,
           child: Column(
             children: [
               Text(
