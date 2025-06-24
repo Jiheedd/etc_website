@@ -75,6 +75,39 @@ class VideoSoundControl extends StatelessWidget {
     );
   }
 }
+// play/stop control widget - always in top-left corner
+class VideoPlayStopControl extends StatelessWidget {
+  const VideoPlayStopControl({
+    super.key,
+    required this.isPlaying,
+    required this.onTogglePlayPause,
+  });
+  final bool isPlaying;
+  final VoidCallback onTogglePlayPause;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 12,
+      left: 12,
+      child: GestureDetector(
+        onTap: onTogglePlayPause,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(
+            isPlaying ? Icons.pause : Icons.play_arrow,
+            color: Colors.white,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // Fullscreen control widget - always in top-left corner
 class VideoFullscreenControl extends StatelessWidget {
@@ -150,30 +183,44 @@ class VideoCarouselSection extends StatefulWidget {
 }
 
 class _VideoCarouselSectionState extends State<VideoCarouselSection> {
+  // Controllers and state management
   PageController? _pageController;
   late final BehaviorSubject<int> _currentIndex$;
   late final BehaviorSubject<bool> _muted$;
   late final BehaviorSubject<bool> _isPlaying$;
+  late final BehaviorSubject<bool> _isVisible$;
+  late final BehaviorSubject<bool> _manuallyPaused$;
 
+  // Video management - Map of controllers for better lifecycle management
+  final Map<int, VideoPlayerController> _videoControllers = {};
   VideoPlayerController? _activeController;
   Timer? _autoPlayTimer;
   StreamSubscription? _videoEndSubscription;
-  var _isInitializing = false;
-  var _userInteracted = false;
+
+  // State flags
+  bool _isInitializing = false;
+  bool _isInFullscreen = false;
+  bool _hasEverBeenVisible = false;
+
+  // Layout management
   var _visibleVideosCount = 3;
   double _lastScreenWidth = 0;
 
   @override
   void initState() {
     super.initState();
+    _initializeState();
+  }
 
+  void _initializeState() {
     _currentIndex$ = BehaviorSubject.seeded(0);
     _muted$ = BehaviorSubject.seeded(false);
     _isPlaying$ = BehaviorSubject.seeded(false);
+    _isVisible$ = BehaviorSubject.seeded(false);
+    _manuallyPaused$ = BehaviorSubject.seeded(false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePageController();
-      _initializeCurrentVideo();
     });
   }
 
@@ -185,23 +232,16 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
       viewportFraction: _calculateViewportFraction(screenWidth),
     );
 
-    // Trigger a rebuild after initialization
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   void _updateLayoutForScreenSize(double screenWidth) {
-    if ((screenWidth - _lastScreenWidth).abs() < 50) {
-      return; // Avoid frequent updates
-    }
+    if ((screenWidth - _lastScreenWidth).abs() < 50) return;
 
     const videoWidth = FixedVideoContainer.videoWidth;
     const spacing = FixedVideoContainer.spacing * 2;
 
-    // Calculate how many videos can fit with padding
-    var maxVideos = ((screenWidth - 60) / (videoWidth + spacing))
-        .floor(); // 60 for safe margins
+    var maxVideos = ((screenWidth - 60) / (videoWidth + spacing)).floor();
     _visibleVideosCount = maxVideos.clamp(3, 5);
     _lastScreenWidth = screenWidth;
 
@@ -215,6 +255,85 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     return (videoWidth + spacing) / screenWidth;
   }
 
+  // Safe controller check
+  bool _isControllerValid(VideoPlayerController? controller) {
+    return controller != null &&
+        controller.value.isInitialized &&
+        !controller.value.hasError;
+  }
+
+  // Get or create controller for a specific index
+  Future<VideoPlayerController?> _getOrCreateController(int index) async {
+    if (_videoControllers.containsKey(index)) {
+      final controller = _videoControllers[index]!;
+      if (_isControllerValid(controller)) {
+        return controller;
+      } else {
+        // Controller is invalid, remove it
+        _videoControllers.remove(index);
+      }
+    }
+
+    if (index >= widget.videos.length) return null;
+
+    try {
+      final video = widget.videos[index];
+      final controller = VideoPlayerController.network(video.url);
+      await controller.initialize();
+
+      if (mounted) {
+        _videoControllers[index] = controller;
+        controller.setLooping(false);
+        controller.setVolume(_muted$.value ? 0 : 1);
+        return controller;
+      } else {
+        controller.dispose();
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error initializing video controller for index $index: $e');
+      return null;
+    }
+  }
+
+  // Visibility-Triggered Autoplay Logic
+  void _onVisibilityChanged(VisibilityInfo info) {
+    final isVisible = info.visibleFraction >= 0.5;
+    _isVisible$.add(isVisible);
+
+    if (!isVisible) {
+      // Pause when out of view
+      _pauseVideoIfPlaying();
+    } else {
+      if (!_hasEverBeenVisible) {
+        // First time visible - initialize video
+        _hasEverBeenVisible = true;
+        _initializeCurrentVideo();
+      } else {
+        // Resume only if not manually paused
+        _resumeVideoIfNeeded();
+      }
+    }
+  }
+
+  void _pauseVideoIfPlaying() {
+    if (_isControllerValid(_activeController) &&
+        _activeController!.value.isPlaying) {
+      _activeController!.pause();
+      _isPlaying$.add(false);
+    }
+  }
+
+  void _resumeVideoIfNeeded() {
+    if (_isControllerValid(_activeController) &&
+        !_manuallyPaused$.value &&
+        !_activeController!.value.isPlaying) {
+      _activeController!.play();
+      _isPlaying$.add(true);
+    }
+  }
+
+  // Initialize current video
   Future<void> _initializeCurrentVideo() async {
     if (_isInitializing || widget.videos.isEmpty) return;
 
@@ -222,35 +341,21 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     final currentIndex = _currentIndex$.value;
 
     try {
-      await _disposeActiveController();
+      // Get or create controller for current index
+      final controller = await _getOrCreateController(currentIndex);
 
-      final video = widget.videos[currentIndex];
-      final controller = VideoPlayerController.network(video.url);
+      if (!mounted) return;
 
-      await controller.initialize();
+      if (controller != null) {
+        _activeController = controller;
+        _setupVideoEndListener(controller);
 
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-
-      _activeController = controller;
-      controller.setLooping(false);
-      controller.setVolume(_muted$.value ? 0 : 1);
-
-      _videoEndSubscription?.cancel();
-      _videoEndSubscription = controller.addListener(() {
-        final value = controller.value;
-        if (value.position >= value.duration &&
-            value.duration > Duration.zero &&
-            value.position > Duration.zero &&
-            !value.isBuffering) {
-          _onVideoEnded();
+        // Auto-play only if visible and not manually paused
+        if (_isVisible$.value && !_manuallyPaused$.value) {
+          await controller.play();
+          _isPlaying$.add(true);
         }
-      }) as StreamSubscription?;
-
-      await controller.play();
-      _isPlaying$.add(true);
+      }
 
       setState(() {});
     } catch (e) {
@@ -261,15 +366,20 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     }
   }
 
-  Future<void> _disposeActiveController() async {
+// Updated _setupVideoEndListener to only listen to the active controller
+  void _setupVideoEndListener(VideoPlayerController controller) {
     _videoEndSubscription?.cancel();
-    _videoEndSubscription = null;
+    _videoEndSubscription = controller.addListener(() {
+      if (!_isControllerValid(controller) || controller != _activeController) return;
 
-    if (_activeController != null) {
-      await _activeController!.pause();
-      _activeController!.dispose();
-      _activeController = null;
-    }
+      final value = controller.value;
+      if (value.position >= value.duration &&
+          value.duration > Duration.zero &&
+          value.position > Duration.zero &&
+          !value.isBuffering) {
+        _onVideoEnded();
+      }
+    }) as StreamSubscription?;
   }
 
   void _onVideoEnded() {
@@ -293,13 +403,27 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     );
   }
 
+  void _moveToPreviousVideo() {
+    if (!mounted) return;
+
+    final currentIndex = _currentIndex$.value;
+    final previousIndex =
+        (currentIndex - 1 + widget.videos.length) % widget.videos.length;
+
+    _pageController!.animateToPage(
+      previousIndex,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
   void _onPageChanged(int index) {
     if (_currentIndex$.value == index) return;
 
     _currentIndex$.add(index);
     _isPlaying$.add(false);
-    _userInteracted = false;
     _autoPlayTimer?.cancel();
+    _manuallyPaused$.add(false); // Reset manual pause flag on page change
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -312,10 +436,7 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
     if (_autoPlayTimer != null) return;
 
     _autoPlayTimer = Timer.periodic(widget.autoPlayDelay, (timer) {
-      if (_activeController == null ||
-          !_activeController!.value.isInitialized) {
-        return;
-      }
+      if (!_isControllerValid(_activeController)) return;
 
       if (_activeController!.value.isPlaying) return;
 
@@ -343,45 +464,38 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
   }
 
   void _togglePlayPause() {
-    if (_activeController == null) return;
+    if (!_isControllerValid(_activeController)) return;
 
-    _userInteracted = true;
     _autoPlayTimer?.cancel();
 
     if (_activeController!.value.isPlaying) {
       _activeController!.pause();
       _isPlaying$.add(false);
+      _manuallyPaused$.add(true); // Track manual pause
     } else {
       _activeController!.play();
       _isPlaying$.add(true);
+      _manuallyPaused$.add(false); // Reset manual pause flag
     }
   }
 
   void _toggleMute() {
     final muted = !_muted$.value;
     _muted$.add(muted);
-    _activeController?.setVolume(muted ? 0 : 1);
-  }
 
-  void _enterFullscreen() {
-    if (_activeController == null) return;
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (context) => FullscreenVideoOverlay(
-        controller: _activeController!,
-        isMuted: _muted$.value,
-        onToggleMute: _toggleMute,
-      ),
-    );
+    // Update volume for all controllers
+    for (final controller in _videoControllers.values) {
+      if (_isControllerValid(controller)) {
+        controller.setVolume(muted ? 0 : 1);
+      }
+    }
   }
 
   void _onVideoTap(int index) {
+    print('Video tapped at index: $index');
     if (index == _currentIndex$.value) {
       _togglePlayPause();
     } else {
-      _userInteracted = true;
       _pageController!.animateToPage(
         index,
         duration: const Duration(milliseconds: 400),
@@ -393,11 +507,25 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
   @override
   void dispose() {
     _autoPlayTimer?.cancel();
-    _disposeActiveController();
+    _videoEndSubscription?.cancel();
+
+    // Dispose all controllers
+    for (final controller in _videoControllers.values) {
+      try {
+        controller.pause();
+        controller.dispose();
+      } catch (e) {
+        debugPrint('Error disposing controller: $e');
+      }
+    }
+    _videoControllers.clear();
+
     _pageController?.dispose();
     _currentIndex$.close();
     _muted$.close();
     _isPlaying$.close();
+    _isVisible$.close();
+    _manuallyPaused$.close();
     super.dispose();
   }
 
@@ -405,53 +533,20 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
   Widget build(BuildContext context) {
     const height = FixedVideoContainer.videoHeight + 20;
 
-    // Show loading indicator if page controller is not initialized yet
     if (_pageController == null) {
       return const SizedBox(
         height: height,
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
+        child: Center(child: CircularProgressIndicator()),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Handle screen size changes
-        final currentWidth = constraints.maxWidth;
-        if ((currentWidth - _lastScreenWidth).abs() > 50) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _updateLayoutForScreenSize(currentWidth);
-
-              // Recreate PageController with new viewport fraction
-              final oldController = _pageController;
-              final currentPage = oldController?.hasClients == true
-                  ? oldController!.page?.round() ?? 0
-                  : 0;
-
-              _pageController = PageController(
-                viewportFraction: _calculateViewportFraction(currentWidth),
-                initialPage: currentPage,
-              );
-
-              oldController?.dispose();
-              setState(() {});
-            }
-          });
-        }
+        _handleScreenSizeChange(constraints.maxWidth);
 
         return VisibilityDetector(
           key: const Key('video-carousel'),
-          onVisibilityChanged: (info) {
-            if (info.visibleFraction < 0.5) {
-              _activeController?.pause();
-              _isPlaying$.add(false);
-            } else if (_activeController != null && !_userInteracted) {
-              _activeController?.play();
-              _isPlaying$.add(true);
-            }
-          },
+          onVisibilityChanged: _onVisibilityChanged,
           child: SizedBox(
             height: height,
             width: double.infinity,
@@ -465,96 +560,8 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
                   onPageChanged: _onPageChanged,
                   itemCount: widget.videos.length,
                   physics: const BouncingScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    final isMain = index == currentIndex;
-                    final video = widget.videos[index];
-
-                    return FixedVideoContainer(
-                      isMain: isMain,
-                      child: GestureDetector(
-                        onTap: () => _onVideoTap(index),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            children: [
-                              // Video or thumbnail - ALWAYS fills the container completely
-                              Positioned.fill(
-                                child: isMain &&
-                                        _activeController != null &&
-                                        _activeController!.value.isInitialized
-                                    ? FittedBox(
-                                        fit: BoxFit.cover,
-                                        child: SizedBox(
-                                          width: _activeController!
-                                              .value.size.width,
-                                          height: _activeController!
-                                              .value.size.height,
-                                          child:
-                                              VideoPlayer(_activeController!),
-                                        ),
-                                      )
-                                    : Container(
-                                        decoration: BoxDecoration(
-                                          image: DecorationImage(
-                                            image:
-                                                NetworkImage(video.thumbnail),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-                              ),
-
-                              // Play/Pause overlay - centered
-                              if (isMain)
-                                Positioned.fill(
-                                  child: StreamBuilder<bool>(
-                                    stream: _isPlaying$,
-                                    builder: (context, snapshot) {
-                                      final isPlaying = snapshot.data ?? false;
-                                      return Center(
-                                        child: VideoPlayPauseOverlay(
-                                          isVisible: !isPlaying,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-
-                              // Fullscreen control - ALWAYS top-left corner
-                              if (isMain)
-                                VideoFullscreenControl(
-                                  onFullscreen: _enterFullscreen,
-                                ),
-
-                              // Sound control - ALWAYS top-right corner
-                              if (isMain)
-                                StreamBuilder<bool>(
-                                  stream: _muted$,
-                                  builder: (context, snapshot) {
-                                    final muted = snapshot.data ?? false;
-                                    return VideoSoundControl(
-                                      isMuted: muted,
-                                      onToggleMute: _toggleMute,
-                                    );
-                                  },
-                                ),
-
-                              // Loading indicator
-                              if (isMain && _isInitializing)
-                                const Positioned.fill(
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                  itemBuilder: (context, index) =>
+                      _buildVideoItem(index, currentIndex),
                 );
               },
             ),
@@ -563,417 +570,129 @@ class _VideoCarouselSectionState extends State<VideoCarouselSection> {
       },
     );
   }
-}
 
-// Facebook-style fullscreen video overlay
-class FullscreenVideoOverlay extends StatefulWidget {
-  const FullscreenVideoOverlay({
-    super.key,
-    required this.controller,
-    required this.isMuted,
-    required this.onToggleMute,
-  });
-  final VideoPlayerController controller;
-  final bool isMuted;
-  final VoidCallback onToggleMute;
-
-  @override
-  State<FullscreenVideoOverlay> createState() => _FullscreenVideoOverlayState();
-}
-
-class _FullscreenVideoOverlayState extends State<FullscreenVideoOverlay>
-    with SingleTickerProviderStateMixin {
-  var _showControls = true;
-  Timer? _hideControlsTimer;
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutBack,
-    ));
-
-    _animationController.forward();
-    _startHideControlsTimer();
-  }
-
-  void _startHideControlsTimer() {
-    _hideControlsTimer?.cancel();
-    _hideControlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showControls = false;
-        });
-      }
-    });
-  }
-
-  void _toggleControls() {
-    setState(() {
-      _showControls = !_showControls;
-    });
-    if (_showControls) {
-      _startHideControlsTimer();
+  void _handleScreenSizeChange(double currentWidth) {
+    if ((currentWidth - _lastScreenWidth).abs() > 50) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _updateLayoutForScreenSize(currentWidth);
+          _recreatePageController(currentWidth);
+        }
+      });
     }
   }
 
-  void _closeFullscreen() {
-    _animationController.reverse().then((_) {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    });
+  void _recreatePageController(double currentWidth) {
+    final oldController = _pageController;
+    final currentPage = oldController?.hasClients == true
+        ? oldController!.page?.round() ?? 0
+        : 0;
+
+    _pageController = PageController(
+      viewportFraction: _calculateViewportFraction(currentWidth),
+      initialPage: currentPage,
+    );
+
+    oldController?.dispose();
+    setState(() {});
   }
 
-  @override
-  void dispose() {
-    _hideControlsTimer?.cancel();
-    _animationController.dispose();
-    super.dispose();
-  }
+  Widget _buildVideoItem(int index, int currentIndex) {
+    final isMain = index == currentIndex;
+    final video = widget.videos[index];
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _toggleControls,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: AnimatedBuilder(
-          animation: _scaleAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Center(
-                child: GestureDetector(
-                  onTap: _toggleControls,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.9,
-                      maxHeight: MediaQuery.of(context).size.height * 0.8,
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: widget.controller.value.aspectRatio,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Stack(
-                          children: [
-                            // Video player
-                            Positioned.fill(
-                              child: FittedBox(
-                                fit: BoxFit.cover,
-                                child: SizedBox(
-                                  width: widget.controller.value.size.width,
-                                  height: widget.controller.value.size.height,
-                                  child: VideoPlayer(widget.controller),
-                                ),
-                              ),
-                            ),
-
-                            // Controls overlay
-                            if (_showControls)
-                              Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.black.withOpacity(0.7),
-                                      Colors.transparent,
-                                      Colors.transparent,
-                                      Colors.black.withOpacity(0.7),
-                                    ],
-                                    stops: const [0.0, 0.3, 0.7, 1.0],
-                                  ),
-                                ),
-                              ),
-
-                            // Close button
-                            if (_showControls)
-                              Positioned(
-                                top: 16,
-                                right: 16,
-                                child: GestureDetector(
-                                  onTap: _closeFullscreen,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                            // Sound control
-                            if (_showControls)
-                              Positioned(
-                                top: 16,
-                                left: 16,
-                                child: GestureDetector(
-                                  onTap: widget.onToggleMute,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                    child: Icon(
-                                      widget.isMuted
-                                          ? Icons.volume_off
-                                          : Icons.volume_up,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+    return FixedVideoContainer(
+      isMain: isMain,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Video or thumbnail
+            Positioned.fill(
+              child: isMain && _isControllerValid(_activeController)
+                  ? FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _activeController!.value.size.width,
+                  height: _activeController!.value.size.height,
+                  child: VideoPlayer(_activeController!),
+                ),
+              )
+                  : Container(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: NetworkImage(video.thumbnail),
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
-            );
-          },
+            ),
+
+            // // Play/Pause overlay
+            // if (isMain)
+            //   Positioned.fill(
+            //     child: StreamBuilder<bool>(
+            //       stream: _isPlaying$,
+            //       builder: (context, snapshot) {
+            //         final isPlaying = snapshot.data ?? false;
+            //         return Center(
+            //           child: VideoPlayPauseOverlay(isVisible: !isPlaying),
+            //         );
+            //       },
+            //     ),
+            //   ),
+
+
+
+            // Loading indicator
+            if (isMain && _isInitializing)
+              const Positioned.fill(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ),
+
+            // Tap on video to toggle play/pause
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => _onVideoTap(index),
+                child: Container(
+                  color: Colors.transparent, // Capture taps
+                ),
+              ),
+            ),
+
+
+            // Sound control
+            if (isMain)
+              StreamBuilder<bool>(
+                stream: _muted$,
+                builder: (context, snapshot) {
+                  final muted = snapshot.data ?? false;
+                  return VideoSoundControl(
+                    isMuted: muted,
+                    onToggleMute: _toggleMute,
+                  );
+                },
+              ),
+            // Play/Stop control
+            if (isMain)
+              StreamBuilder<bool>(
+                stream: _isPlaying$,
+                builder: (context, snapshot) {
+                  final isPlaying = snapshot.data ?? false;
+                  return !isPlaying ? VideoPlayStopControl(
+                    isPlaying: isPlaying,
+                    onTogglePlayPause: _togglePlayPause,
+                  ) : const SizedBox.shrink();
+                },
+              ),
+          ],
         ),
       ),
     );
   }
 }
-// // ignore_for_file: use_build_context_synchronously
-//
-// import 'dart:async';
-// import 'package:flutter/material.dart';
-// import 'package:video_player/video_player.dart';
-// import 'package:rxdart/rxdart.dart';
-// import 'package:visibility_detector/visibility_detector.dart';
-//
-// class VideoItem {
-//   final String url;
-//   final String thumbnail;
-//
-//   const VideoItem({required this.url, required this.thumbnail});
-// }
-//
-// class VideoCarouselSection extends StatefulWidget {
-//   final List<VideoItem> videos;
-//
-//   const VideoCarouselSection({super.key, required this.videos});
-//
-//   @override
-//   State<VideoCarouselSection> createState() => _VideoCarouselSectionState();
-// }
-//
-// class _VideoCarouselSectionState extends State<VideoCarouselSection> {
-//   late final PageController _pageController;
-//   late final List<VideoPlayerController?> _videoControllers;
-//   late final BehaviorSubject<int> _currentIndex$;
-//   late final BehaviorSubject<bool> _muted$;
-//   late final BehaviorSubject<bool> _paused$;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _pageController = PageController(viewportFraction: 0.7);
-//     _videoControllers = List.generate(widget.videos.length, (_) => null);
-//     _currentIndex$ = BehaviorSubject.seeded(0);
-//     _muted$ = BehaviorSubject.seeded(false);
-//     _paused$ = BehaviorSubject.seeded(false);
-//     _initVideoController(0);
-//   }
-//
-//   Future<void> _initVideoController(int index) async {
-//     _disposeVideoController(index);
-//     final video = widget.videos[index];
-//     final controller = VideoPlayerController.network(video.url);
-//     await controller.initialize();
-//     controller.setLooping(true);
-//     controller.setVolume(_muted$.value ? 0 : 1);
-//     controller.addListener(() {
-//       if (controller.value.position >= controller.value.duration) {
-//         _onVideoEnded(index);
-//       }
-//     });
-//     if (!_paused$.value) controller.play();
-//     _videoControllers[index] = controller;
-//     setState(() {});
-//   }
-//
-//   void _disposeVideoController(int index) {
-//     _videoControllers[index]?.dispose();
-//     _videoControllers[index] = null;
-//   }
-//
-//   void _onPageChanged(int index) async {
-//     final oldIndex = _currentIndex$.value;
-//     _currentIndex$.add(index);
-//     _videoControllers[oldIndex]?.pause();
-//     _paused$.add(false);
-//     await _initVideoController(index);
-//   }
-//
-//   void _onVideoEnded(int index) {
-//     _disposeVideoController(index);
-//     final nextIndex = (index + 1) % widget.videos.length;
-//     _pageController.animateToPage(nextIndex,
-//         duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-//     _onPageChanged(nextIndex);
-//   }
-//
-//   void _togglePlayPause(int index) {
-//     final controller = _videoControllers[index];
-//     if (controller == null) return;
-//     if (controller.value.isPlaying) {
-//       controller.pause();
-//       _paused$.add(true);
-//     } else {
-//       controller.play();
-//       _paused$.add(false);
-//     }
-//   }
-//   // ensure other videos are paused when the page changes
-//   void _ensureOtherVideosPaused(int index) {
-//     for (var i = 0; i < _videoControllers.length; i++) {
-//       if (i != index && _videoControllers[i] != null) {
-//         _videoControllers[i]?.pause();
-//       }
-//     }
-//   }
-//
-//   void _toggleMute() {
-//     final muted = !_muted$.value;
-//     _muted$.add(muted);
-//     for (var controller in _videoControllers) {
-//       controller?.setVolume(muted ? 0 : 1);
-//     }
-//   }
-//
-//   @override
-//   void dispose() {
-//     _pageController.dispose();
-//     for (var c in _videoControllers) {
-//       c?.dispose();
-//     }
-//     _currentIndex$.close();
-//     _muted$.close();
-//     _paused$.close();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final height = MediaQuery.of(context).size.height * 0.9;
-//     final width = MediaQuery.of(context).size.width * 0.6;
-//
-//     return SizedBox(
-//       height: height,
-//       child: StreamBuilder<int>(
-//         stream: _currentIndex$,
-//         builder: (context, snapshot) {
-//           final currentIndex = snapshot.data ?? 0;
-//           return PageView.builder(
-//             controller: _pageController,
-//             onPageChanged: _onPageChanged,
-//             itemCount: widget.videos.length,
-//             physics: const BouncingScrollPhysics(),
-//             itemBuilder: (context, index) {
-//               final isMain = index == currentIndex;
-//               final controller = _videoControllers[index];
-//               final aspectRatio = controller?.value.aspectRatio ?? 9 / 16;
-//               // Ensure other videos are paused when the main video is playing
-//               if (isMain) {
-//                 _ensureOtherVideosPaused(index);
-//               }
-//               return Center(
-//                 child: Container(
-//                   padding: EdgeInsets.symmetric(horizontal: isMain ? 12 : 24),
-//                   width: aspectRatio < 1 ? width * 1 : width * 0.6,
-//                   child: Stack(
-//                     alignment: Alignment.center,
-//                     children: [
-//                       AspectRatio(
-//                         aspectRatio: aspectRatio,
-//                         child: ClipRRect(
-//                           borderRadius: BorderRadius.circular(16),
-//                           child: controller != null && controller.value.isInitialized
-//                               ? VideoPlayer(controller)
-//                               : Image.network(
-//                             widget.videos[index].thumbnail,
-//                             fit: BoxFit.cover,
-//                           ),
-//                         ),
-//                       ),
-//                       if (isMain)
-//                         StreamBuilder<bool>(
-//                           stream: _paused$,
-//                           builder: (context, snapshot) {
-//                             final paused = snapshot.data ?? false;
-//                             return AnimatedOpacity(
-//                               opacity: paused ? 1 : 0,
-//                               duration: const Duration(milliseconds: 200),
-//                               child: Icon(Icons.play_circle_fill,
-//                                   size: 80, color: Colors.white.withOpacity(0.8)),
-//                             );
-//                           },
-//                         ),
-//                       Positioned.fill(
-//                         child: GestureDetector(
-//                           onTap: () {
-//                             if (isMain) {
-//                               _togglePlayPause(index);
-//                             } else {
-//                               _pageController.animateToPage(index,
-//                                   duration: const Duration(milliseconds: 400),
-//                                   curve: Curves.easeInOut);
-//                             }
-//                           },
-//                         ),
-//                       ),
-//                       if (isMain)
-//                         Positioned(
-//                           top: 16,
-//                           right: 16,
-//                           child: StreamBuilder<bool>(
-//                             stream: _muted$,
-//                             builder: (context, snapshot) {
-//                               final muted = snapshot.data ?? false;
-//                               return IconButton(
-//                                 icon: Icon(
-//                                   muted ? Icons.volume_off : Icons.volume_up,
-//                                   color: Colors.white,
-//                                   size: 28,
-//                                 ),
-//                                 onPressed: _toggleMute,
-//                               );
-//                             },
-//                           ),
-//                         ),
-//                     ],
-//                   ),
-//                 ),
-//               );
-//             },
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }
+
