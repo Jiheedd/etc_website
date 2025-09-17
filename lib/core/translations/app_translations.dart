@@ -38,13 +38,29 @@ const englishMap = {
   'gallery_item3': 'Expert Training Session',
   'gallery_item4': 'Student Success Stories',
 
-  // Join Us Section
+  // Join Us Section (legacy keys)
   'join_us_title': 'Join Our Training Program',
   'join_us_name': 'Full Name',
   'join_us_email': 'Email',
   'join_us_phone': 'Phone Number',
   'join_us_course': 'Course Interest',
   'join_us_submit': 'Submit Application',
+
+  // Form (new)
+  'form_title': 'Training Registration',
+  'form_fullName': 'Full Name',
+  'form_email': 'Email Address',
+  'form_phone': 'Phone Number',
+  'form_program': 'Training Program',
+  'form_message': 'Message (optional)',
+  'form_submit': 'Register',
+  'form_success': 'Your registration has been submitted successfully!',
+  'form_error': 'An error occurred, please try again.',
+  'form_fullName_required': 'Please enter your full name',
+  'form_email_required': 'Email is required',
+  'form_email_invalid': 'Invalid email address',
+  'form_phone_required': 'Phone number is required',
+  'form_program_required': 'Please select a program',
 
   // Footer
   'footer_copyright': '© 2024 ETC - Echi Training Center. All rights reserved.',
@@ -95,13 +111,29 @@ const arabicMap = {
   'gallery_item3': 'جلسة تدريبية متخصصة',
   'gallery_item4': 'قصص نجاح الطلاب',
 
-  // Join Us Section
+  // Join Us Section (legacy keys)
   'join_us_title': 'انضم إلى برنامجنا التدريبي',
   'join_us_name': 'الاسم الكامل',
   'join_us_email': 'البريد الإلكتروني',
   'join_us_phone': 'رقم الهاتف',
   'join_us_course': 'الاهتمام بالدورة',
   'join_us_submit': 'تقديم الطلب',
+
+  // Form (new)
+  'form_title': 'التسجيل في التكوين',
+  'form_fullName': 'الاسم الكامل',
+  'form_email': 'البريد الإلكتروني',
+  'form_phone': 'رقم الهاتف',
+  'form_program': 'برنامج التكوين',
+  'form_message': 'ملاحظة (اختياري)',
+  'form_submit': 'سجل الآن',
+  'form_success': 'تم إرسال تسجيلك بنجاح!',
+  'form_error': 'حدث خطأ، يرجى المحاولة مرة أخرى.',
+  'form_fullName_required': 'الرجاء إدخال الاسم الكامل',
+  'form_email_required': 'البريد الإلكتروني مطلوب',
+  'form_email_invalid': 'البريد الإلكتروني غير صالح',
+  'form_phone_required': 'رقم الهاتف مطلوب',
+  'form_program_required': 'يرجى اختيار البرنامج',
 
   // Footer
   'footer_copyright': '© 2024 مركز العشي للتدريب. جميع الحقوق محفوظة.',
@@ -153,13 +185,29 @@ const frenchMap = {
   'gallery_item3': 'Session de Formation Expert',
   'gallery_item4': 'Histoires de Réussite des Étudiants',
 
-  // Join Us Section
+  // Join Us Section (legacy keys)
   'join_us_title': 'Rejoignez Notre Programme de Formation',
   'join_us_name': 'Nom Complet',
   'join_us_email': 'Email',
   'join_us_phone': 'Numéro de Téléphone',
   'join_us_course': 'Intérêt pour le Cours',
   'join_us_submit': 'Soumettre la Demande',
+
+  // Form (new)
+  'form_title': 'Inscription à la formation',
+  'form_fullName': 'Nom complet',
+  'form_email': 'Adresse e-mail',
+  'form_phone': 'Numéro de téléphone',
+  'form_program': 'Programme de formation',
+  'form_message': 'Message (optionnel)',
+  'form_submit': 'S\'inscrire',
+  'form_success': 'Votre inscription a été envoyée avec succès !',
+  'form_error': 'Une erreur est survenue, veuillez réessayer.',
+  'form_fullName_required': 'Veuillez entrer votre nom complet',
+  'form_email_required': 'L\'email est requis',
+  'form_email_invalid': 'Adresse e-mail invalide',
+  'form_phone_required': 'Le téléphone est requis',
+  'form_program_required': 'Veuillez sélectionner un programme',
 
   // Footer
   'footer_copyright':

@@ -25,6 +25,8 @@ dependencies:
   video_player: ^2.8.2
   chewie: ^1.7.4
   visibility_detector: ^0.4.0
+  firebase_core:
+  cloud_firestore:
 
 dev_dependencies:
   build_runner:
