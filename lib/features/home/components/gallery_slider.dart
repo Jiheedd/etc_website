@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../widgets/progressive_network_image.dart';
+import '../widgets/gallery_fullscreen_viewer.dart';
+
 class GallerySlider extends StatefulWidget {
   const GallerySlider({
     super.key,
@@ -20,30 +23,14 @@ class GallerySlider extends StatefulWidget {
 }
 
 class _GallerySliderState extends State<GallerySlider> {
-  late final PageController _pageController;
-  var _currentIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
   void _openFullscreen(int index) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
-      builder: (context) => GalleryFullscreenView(
-        items: widget.items,
-        initialIndex: index,
-      ),
-    );
+    // Reuse the new fullscreen viewer (supports Escape key + progressive rendering).
+    final urls = widget.items
+        .map((e) => e.networkUrl)
+        .whereType<String>()
+        .toList();
+    if (urls.isEmpty) return;
+    showGalleryFullscreenViewer(context, urls: urls, initialIndex: index);
   }
 
   @override
@@ -112,10 +99,15 @@ class _GalleryItemState extends State<_GalleryItem> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  widget.item.imagePath,
-                  fit: BoxFit.cover,
-                ),
+                child: widget.item.networkUrl != null
+                    ? ProgressiveNetworkImage(
+                        url: widget.item.networkUrl!,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.asset(
+                        widget.item.imagePath ?? '',
+                        fit: BoxFit.cover,
+                      ),
               ),
               AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
@@ -135,14 +127,16 @@ class _GalleryItemState extends State<_GalleryItem> {
                   padding: const EdgeInsets.all(16),
                   child: Align(
                     alignment: Alignment.bottomLeft,
-                    child: Text(
-                      widget.item.title.tr,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: (widget.item.title?.isNotEmpty ?? false)
+                        ? Text(
+                            widget.item.title!.tr,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -213,7 +207,7 @@ class _GalleryFullscreenViewState extends State<GalleryFullscreenView> {
             ),
           ),
         ),
-        Expanded(
+        Positioned.fill(
           child: Stack(
             children: [
               Center(
@@ -224,9 +218,9 @@ class _GalleryFullscreenViewState extends State<GalleryFullscreenView> {
                   itemBuilder: (context, index) {
                     return InteractiveViewer(
                       minScale: 1,
-                      maxScale: 3,
+                      maxScale: 4,
                       child: Image.asset(
-                        widget.items[index].imagePath,
+                        widget.items[index].imagePath??'',
                         fit: BoxFit.contain,
                       ),
                     );
@@ -315,9 +309,21 @@ class _NavigationArrow extends StatelessWidget {
 
 class GalleryItem {
   const GalleryItem({
-    required this.imagePath,
-    required this.title,
+    this.imagePath,
+    this.title,
+    this.networkUrl,
   });
-  final String imagePath;
-  final String title;
+
+  /// For bundled assets (legacy gallery).
+  final String? imagePath;
+
+  /// Translation key for the overlay label (optional).
+  final String? title;
+
+  /// For Firebase Storage / network images.
+  final String? networkUrl;
+
+  const GalleryItem.network({required this.networkUrl})
+      : imagePath = null,
+        title = null;
 }

@@ -25,6 +25,7 @@ class FirstView extends StatelessWidget {
                   children: [
                     Text(
                       'first_view_title'.tr,
+                      textAlign: TextAlign.center,
                       style: ShadTheme.of(context).textTheme.h1Large.copyWith(
                             fontSize: 80,
                           ),

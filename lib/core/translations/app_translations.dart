@@ -12,6 +12,12 @@ const englishMap = {
   'language_arabic': 'العربية',
   'language_french': 'Français',
 
+  // Sections (Navbar)
+  'section_intro': 'Intro',
+  'section_videos': 'Videos',
+  'section_gallery': 'Gallery',
+  'section_join_us': 'Join Us',
+
   // First View
   'first_view_title': 'ETC - Echi Training Center',
   'first_view_button': 'Join Our Training Program',
@@ -37,6 +43,7 @@ const englishMap = {
   'gallery_item2': 'Hands-on Workshop',
   'gallery_item3': 'Expert Training Session',
   'gallery_item4': 'Student Success Stories',
+  'see_more': 'See more',
 
   // Join Us Section (legacy keys)
   'join_us_title': 'Join Our Training Program',
@@ -86,6 +93,12 @@ const arabicMap = {
   'language_arabic': 'العربية',
   'language_french': 'Français',
 
+  // Sections (Navbar)
+  'section_intro': 'التعريف بالمركز',
+  'section_videos': 'فيديوهات',
+  'section_gallery': 'معرض الصور',
+  'section_join_us': 'التسجيل',
+
   // First View
   'first_view_title': 'مركز العشي للتدريب',
   'first_view_button': 'انضم إلى برنامجنا التدريبي',
@@ -110,6 +123,7 @@ const arabicMap = {
   'gallery_item2': 'ورشة عمل عملية',
   'gallery_item3': 'جلسة تدريبية متخصصة',
   'gallery_item4': 'قصص نجاح الطلاب',
+  'see_more': 'عرض المزيد',
 
   // Join Us Section (legacy keys)
   'join_us_title': 'انضم إلى برنامجنا التدريبي',
@@ -125,7 +139,7 @@ const arabicMap = {
   'form_email': 'البريد الإلكتروني',
   'form_phone': 'رقم الهاتف',
   'form_program': 'برنامج التكوين',
-  'form_message': 'ملاحظة (اختياري)',
+  'form_message': 'صندوق الأسئلة و الملاحظات (اختياري)',
   'form_submit': 'سجل الآن',
   'form_success': 'تم إرسال تسجيلك بنجاح!',
   'form_error': 'حدث خطأ، يرجى المحاولة مرة أخرى.',
@@ -159,6 +173,12 @@ const frenchMap = {
   'language_arabic': 'العربية',
   'language_french': 'Français',
 
+  // Sections (Navbar)
+  'section_intro': 'Intro',
+  'section_videos': 'Vidéos',
+  'section_gallery': 'Galerie',
+  'section_join_us': 'Inscription',
+
   // First View
   'first_view_title': 'ETC - Centre de Formation Echi',
   'first_view_button': 'Rejoignez Notre Programme de Formation',
@@ -184,6 +204,7 @@ const frenchMap = {
   'gallery_item2': 'Atelier Pratique',
   'gallery_item3': 'Session de Formation Expert',
   'gallery_item4': 'Histoires de Réussite des Étudiants',
+  'see_more': 'Voir plus',
 
   // Join Us Section (legacy keys)
   'join_us_title': 'Rejoignez Notre Programme de Formation',

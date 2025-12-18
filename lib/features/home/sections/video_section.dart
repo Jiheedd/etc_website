@@ -26,16 +26,19 @@ class VideoSection extends ConsumerWidget {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final box = context.findRenderObject() as RenderBox?;
           if (box != null) {
-            final offset = box.localToGlobal(Offset.zero).dy;
-            ref.read(scrollNotifierProvider.notifier).updateSectionPosition(
-                  section: Section.video,
-                  dy: offset,
+            // final offset = box.localToGlobal(Offset.zero).dy;
+            // ref.read(scrollNotifierProvider.notifier).updateSectionPosition(
+            //   section: Section.video,
+            //   dy: offset,
+            // );
+            ref.read(scrollNotifierProvider.notifier).scrollToSection(
+                  Section.videos,
                 );
           }
         });
 
         return Container(
-          key: const ValueKey(Section.video),
+          key: const ValueKey(Section.videos),
           padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
           color: Theme.of(context).colorScheme.surface,
           child: Column(

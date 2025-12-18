@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:device_preview/device_preview.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_landing_page/component/component.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_landing_page/core/translations/app_translations.dart';
 import 'package:flutter_landing_page/features/home/sections/video_carousel_section.dart';
 import 'package:flutter_landing_page/first_view.dart';
 import 'package:flutter_landing_page/header.dart';
+import 'package:flutter_landing_page/section/section.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart';
@@ -17,9 +19,34 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'features/home/sections/gallery_section.dart';
 import 'features/home/sections/intro_section.dart';
 import 'features/home/sections/join_us_section.dart';
+import 'firebase_options.dart';
 import 'footer.dart';
 
-void main() {
+// Web-specific platform view registry fix
+// This ensures platformViewRegistry is available for web plugins
+import 'fix_platform_view.dart' if (dart.library.io) 'fix_platform_view_stub.dart';
+
+void main() async {
+  // In modern Flutter (>=3.22), plugins are auto-registered
+  // No need to call registerPlugins() manually
+  
+  // Ensure platformViewRegistry is available for web
+  if (kIsWeb) {
+    ensurePlatformViewRegistry();
+  }
+  // Firebase init (Web + Mobile). If web config is missing, do not crash:
+  // gallery + form fall back to "no-firebase" mode safely.
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('[main] Firebase.initializeApp failed: $e');
+    }
+  }
+
   Get.put(LanguageController());
   runApp(
     ProviderScope(
@@ -105,8 +132,10 @@ class MainApp extends ConsumerWidget {
       },
       title: 'ETC - Echi Training Center',
       translations: AppTranslations(),
-      locale: Get.deviceLocale,
-      fallbackLocale: const Locale('en'),
+      // Force French as the default language on all platforms at startup.
+      // Language switching is still handled via LanguageController + Get.updateLocale.
+      locale: const Locale('fr'),
+      fallbackLocale: const Locale('fr'),
       supportedLocales: const [
         Locale('en'),
         Locale('ar'),
@@ -114,46 +143,57 @@ class MainApp extends ConsumerWidget {
       ],
       home: Scaffold(
         appBar: const Header(),
-        body: SingleChildScrollView(
-          controller: ref.watch(
-            scrollNotifierProvider.select((s) => s.controller),
-          ),
-          child: const Column(
-            children: [
-              FirstView(),
-              IntroSection(),
-              // VideoCarouselSection(videos: sampleVideos),
-              VideoCarouselSection(
-                videos: [
-                  VideoItem(
-                    // title: 'Sample 1',
-                    url: 'assets/videos/sample1.mp4',
-                    thumbnail: 'assets/images/gallery1.png',
-                  ),
-                  VideoItem(
-                    // title: 'Sample 2',
-                    url: 'assets/videos/sample2.mp4',
-                    thumbnail: 'assets/images/gallery2.png',
-                  ),
-                  VideoItem(
-                    // title: 'Sample 3',
-                    url: 'assets/videos/sample3.mp4',
-                    thumbnail: 'assets/images/gallery3.png',
-                  ),
-                  VideoItem(
-                    // title: 'Sample 4',
-                    url: 'assets/videos/sample4.mp4',
-                    thumbnail: 'assets/images/gallery4.png',
-                  ),
-                ],
-              ),
-              // const VideoSection(),
-              GallerySection(),
-              JoinUsSection(),
-              Footer(),
-            ],
-          ),
-        ),
+        body: Builder(builder: (context) {
+          final scrollNotifier =
+              ref.read(scrollNotifierProvider.notifier);
+
+          return SingleChildScrollView(
+            controller: ref.watch(
+              scrollNotifierProvider.select((s) => s.controller),
+            ),
+            child: Column(
+              children: [
+                const FirstView(),
+                IntroSection(
+                  key: scrollNotifier.getSectionKey(Section.intro),
+                ),
+                VideoCarouselSection(
+                  key: scrollNotifier.getSectionKey(Section.videos),
+                  videos: const [
+                    VideoItem(
+                      // title: 'Sample 1',
+                      url: 'assets/videos/sample1.mp4',
+                      thumbnail: 'assets/images/gallery1.png',
+                    ),
+                    VideoItem(
+                      // title: 'Sample 2',
+                      url: 'assets/videos/sample2.mp4',
+                      thumbnail: 'assets/images/gallery2.png',
+                    ),
+                    VideoItem(
+                      // title: 'Sample 3',
+                      url: 'assets/videos/sample3.mp4',
+                      thumbnail: 'assets/images/gallery3.png',
+                    ),
+                    VideoItem(
+                      // title: 'Sample 4',
+                      url: 'assets/videos/sample4.mp4',
+                      thumbnail: 'assets/images/gallery4.png',
+                    ),
+                  ],
+                ),
+                // const VideoSection(),
+                GallerySection(
+                  key: scrollNotifier.getSectionKey(Section.gallery),
+                ),
+                JoinUsSection(
+                  key: scrollNotifier.getSectionKey(Section.joinUs),
+                ),
+                const Footer(),
+              ],
+            ),
+          );
+        }),
       ),
       debugShowCheckedModeBanner: false,
     );

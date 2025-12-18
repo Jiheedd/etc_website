@@ -67,18 +67,25 @@ class _AppLogo extends ConsumerWidget {
 class _PageLinks extends ConsumerWidget {
   const _PageLinks();
 
+  bool _isArabic() => Get.locale?.languageCode == 'ar';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
-      children: [
-        for (final section in Section.values)
-          ShadButton.link(
-            child: Text(section.name.tr),
-            onPressed: () {
-              ref.read(scrollNotifierProvider.notifier).selectSection(section);
-            },
-          ),
-      ],
+    return Directionality(
+      textDirection: _isArabic() ? TextDirection.rtl : TextDirection.ltr,
+      child: Row(
+        children: [
+          for (final section in Section.values)
+            ShadButton.link(
+              child: Text(section.trKey.tr),
+              onPressed: () {
+                ref
+                    .read(scrollNotifierProvider.notifier)
+                    .selectSection(section);
+              },
+            ),
+        ],
+      ),
     );
   }
 }
@@ -90,43 +97,45 @@ class _LanguageSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<LanguageController>();
 
-    return Obx(() => ShadButton.outline(
-          leading: const Icon(Icons.language, size: 16),
-          child: Text(controller.getLanguageName(controller.currentLanguage)),
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text('language'.tr),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      title: const Text('English'),
-                      onTap: () {
-                        controller.changeLanguage('en');
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      title: const Text('العربية'),
-                      onTap: () {
-                        controller.changeLanguage('ar');
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      title: const Text('Français'),
-                      onTap: () {
-                        controller.changeLanguage('fr');
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ),
+    return Obx(
+      () => ShadButton.outline(
+        leading: const Icon(Icons.language, size: 16),
+        child: Text(controller.getLanguageName(controller.currentLanguage)),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('language'.tr),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    title: const Text('Français'),
+                    onTap: () {
+                      controller.changeLanguage('fr');
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('English'),
+                    onTap: () {
+                      controller.changeLanguage('en');
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('العربية'),
+                    onTap: () {
+                      controller.changeLanguage('ar');
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
-            );
-          },
-        ));
+            ),
+          );
+        },
+      ),
+    );
   }
 }
