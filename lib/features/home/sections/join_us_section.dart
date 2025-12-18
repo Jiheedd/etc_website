@@ -290,22 +290,49 @@ class _LandingFormSectionState extends State<LandingFormSection> {
           SizedBox(
             width: double.infinity,
             height: 50,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _handleSubmit,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Text('form_submit'.tr),
+            child: Builder(
+              builder: (context) {
+                final theme = Theme.of(context);
+                final isDark = theme.brightness == Brightness.dark;
+
+                final backgroundColor =
+                isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
+
+                final foregroundColor =
+                isDark ? theme.colorScheme.primary : theme.colorScheme.onPrimary;
+
+                return ElevatedButton(
+                  onPressed: _isSubmitting ? null : _handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: backgroundColor,
+                    foregroundColor: foregroundColor,
+                    disabledBackgroundColor:
+                    backgroundColor.withOpacity(0.6),
+                    disabledForegroundColor:
+                    foregroundColor.withOpacity(0.7),
+                    elevation: isDark ? 0 : 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: foregroundColor,
+                    ),
+                  )
+                      : Text(
+                    'form_submit'.tr,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                );
+              },
             ),
           ),
+
         ],
       ),
     );

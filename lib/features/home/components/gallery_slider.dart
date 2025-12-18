@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../gallery/gallery_load_controller.dart';
 import '../widgets/progressive_network_image.dart';
+import '../widgets/sequential_network_image.dart';
 import '../widgets/gallery_fullscreen_viewer.dart';
 
 class GallerySlider extends StatefulWidget {
@@ -12,11 +14,30 @@ class GallerySlider extends StatefulWidget {
     this.height = 400,
     this.itemWidth = 300,
     this.itemSpacing = 12,
-  });
+  }) : _urls = null,
+        _loadController = null,
+        _isSequential = false;
+
+  /// Sequential loading version for Firebase Storage images.
+  const GallerySlider.sequential({
+    super.key,
+    required List<String> urls,
+    required GalleryLoadController loadController,
+    this.height = 400,
+    this.itemWidth = 300,
+    this.itemSpacing = 12,
+  }) : items = const [],
+        _urls = urls,
+        _loadController = loadController,
+        _isSequential = true;
+
   final List<GalleryItem> items;
   final double height;
   final double itemWidth;
   final double itemSpacing;
+  final List<String>? _urls;
+  final GalleryLoadController? _loadController;
+  final bool _isSequential;
 
   @override
   State<GallerySlider> createState() => _GallerySliderState();
@@ -24,17 +45,45 @@ class GallerySlider extends StatefulWidget {
 
 class _GallerySliderState extends State<GallerySlider> {
   void _openFullscreen(int index) {
-    // Reuse the new fullscreen viewer (supports Escape key + progressive rendering).
-    final urls = widget.items
-        .map((e) => e.networkUrl)
-        .whereType<String>()
-        .toList();
+    List<String> urls;
+    if (widget._isSequential && widget._urls != null) {
+      urls = widget._urls!;
+    } else {
+      urls = widget.items
+          .map((e) => e.networkUrl)
+          .whereType<String>()
+          .toList();
+    }
     if (urls.isEmpty) return;
     showGalleryFullscreenViewer(context, urls: urls, initialIndex: index);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget._isSequential && widget._urls != null && widget._loadController != null) {
+      return SizedBox(
+        height: widget.height,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: widget._urls!.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: EdgeInsets.only(
+                right: index < widget._urls!.length - 1 ? widget.itemSpacing : 0,
+              ),
+              child: _SequentialGalleryItem(
+                url: widget._urls![index],
+                index: index,
+                loadController: widget._loadController!,
+                width: widget.itemWidth,
+                onTap: () => _openFullscreen(index),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     return SizedBox(
       height: widget.height,
       child: ListView.builder(
@@ -141,6 +190,62 @@ class _GalleryItemState extends State<_GalleryItem> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SequentialGalleryItem extends StatefulWidget {
+  const _SequentialGalleryItem({
+    required this.url,
+    required this.index,
+    required this.loadController,
+    required this.width,
+    required this.onTap,
+  });
+  final String url;
+  final int index;
+  final GalleryLoadController loadController;
+  final double width;
+  final VoidCallback onTap;
+
+  @override
+  State<_SequentialGalleryItem> createState() => _SequentialGalleryItemState();
+}
+
+class _SequentialGalleryItemState extends State<_SequentialGalleryItem> {
+  var _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: widget.width,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SequentialNetworkImage(
+              url: widget.url,
+              index: widget.index,
+              controller: widget.loadController,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
       ),

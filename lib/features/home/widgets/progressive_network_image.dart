@@ -1,10 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 /// Lightweight progressive image renderer for web/mobile.
 ///
-/// - Uses `Image.network` (no per-item FutureBuilder)
-/// - Uses `loadingBuilder` + `frameBuilder` to avoid layout shifts
-/// - Fades-in when the first frame is available
+/// - Uses `CachedNetworkImage` (web-safe, cached)
+/// - Shows skeleton + small spinner while loading
+/// - Fades in when the image is ready
 class ProgressiveNetworkImage extends StatelessWidget {
   const ProgressiveNetworkImage({
     super.key,
@@ -19,56 +20,38 @@ class ProgressiveNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = Container(
-      color: Theme.of(context)
-          .colorScheme
-          .surfaceContainerHighest
-          .withOpacity(0.35),
-    );
+    final baseColor = Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withOpacity(0.35);
 
-    final image = Image.network(
-      url,
+    Widget buildPlaceholder() => Container(
+          color: baseColor,
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+
+    Widget buildError() => Container(
+          color: baseColor,
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image_outlined),
+        );
+
+    final image = CachedNetworkImage(
+      key: ValueKey(url),
+      imageUrl: url,
       fit: fit,
-      filterQuality: FilterQuality.low,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            placeholder,
-            const Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          ],
-        );
-      },
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          child: child,
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            placeholder,
-            const Center(child: Icon(Icons.broken_image_outlined)),
-          ],
-        );
-      },
+      fadeInDuration: const Duration(milliseconds: 200),
+      placeholder: (context, _) => buildPlaceholder(),
+      errorWidget: (context, _, __) => buildError(),
     );
 
     if (borderRadius == null) return image;
     return ClipRRect(borderRadius: borderRadius!, child: image);
   }
 }
-
 

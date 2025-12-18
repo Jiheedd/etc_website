@@ -3,8 +3,9 @@ import 'package:flutter_landing_page/const.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../gallery/expandable_gallery_controller.dart';
+import '../gallery/gallery_load_controller.dart';
 import 'gallery_fullscreen_viewer.dart';
-import 'progressive_network_image.dart';
+import 'sequential_network_image.dart';
 
 /// Opens the expandable gallery overlay as a fullscreen-like dialog
 /// while preserving page margins and allowing click-outside to dismiss.
@@ -40,6 +41,7 @@ class _GalleryOverlay extends ConsumerStatefulWidget {
 
 class _GalleryOverlayState extends ConsumerState<_GalleryOverlay> {
   final ScrollController _scrollController = ScrollController();
+  final GalleryLoadController _loadController = GalleryLoadController();
   var _requestedInitial = false;
   var _lastBatchSize = 0;
 
@@ -47,13 +49,21 @@ class _GalleryOverlayState extends ConsumerState<_GalleryOverlay> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _loadController.addListener(_onLoadStateChanged);
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _loadController.removeListener(_onLoadStateChanged);
+    _loadController.dispose();
     super.dispose();
+  }
+
+  void _onLoadStateChanged() {
+    // Trigger rebuild when loading state changes.
+    if (mounted) setState(() {});
   }
 
   void _onScroll() {
@@ -101,62 +111,84 @@ class _GalleryOverlayState extends ConsumerState<_GalleryOverlay> {
                       // First paint must be fast: request only 3 rows initially.
                       if (!_requestedInitial) {
                         _requestedInitial = true;
-                        Future.microtask(() => controller.loadNextBatch(batchSize));
+                        Future.microtask(() {
+                          controller.loadNextBatch(batchSize);
+                        });
                       }
 
-                      return CustomScrollView(
-                        controller: _scrollController,
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: _OverlayHeader(
-                              onClose: () => Navigator.of(context).pop(),
-                            ),
-                          ),
-                          SliverPadding(
-                            padding: const EdgeInsets.only(top: 12, bottom: 24),
-                            sliver: SliverGrid(
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: cols,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 4 / 3,
-                              ),
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  if (index >= state.urls.length) {
-                                    return const _TilePlaceholder();
-                                  }
+                      // Initialize sequential loader when URLs arrive.
+                      if (state.urls.isNotEmpty && _loadController.images.isEmpty) {
+                        Future.microtask(() {
+                          _loadController.setImages(state.urls);
+                        });
+                      }
 
-                                  final url = state.urls[index];
-                                  return _OverlayTile(
-                                    url: url,
-                                    onTap: () async {
-                                      await showGalleryFullscreenViewer(
-                                        context,
-                                        urls: state.urls,
-                                        initialIndex: index,
-                                      );
-                                    },
-                                  );
-                                },
-                                childCount: state.urls.length +
-                                    (state.isLoadingMore ? cols : 0),
+                      // Update loader when new URLs are added.
+                      if (state.urls.length > _loadController.images.length) {
+                        final newUrls = state.urls.sublist(_loadController.images.length);
+                        Future.microtask(() {
+                          _loadController.addImages(newUrls);
+                        });
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: CustomScrollView(
+                          controller: _scrollController,
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: _OverlayHeader(
+                                onClose: () => Navigator.of(context).pop(),
                               ),
                             ),
-                          ),
-                          if (state.urls.isEmpty && state.isLoading)
-                            const SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: Center(child: CircularProgressIndicator()),
+                            SliverPadding(
+                              padding: const EdgeInsets.only(top: 12, bottom: 24, left: 12, right: 12),
+                              sliver: SliverGrid(
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: cols,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 4 / 3,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    if (index >= state.urls.length) {
+                                      return const _TilePlaceholder();
+                                    }
+
+                                    final url = state.urls[index];
+                                    return _OverlayTile(
+                                      url: url,
+                                      index: index,
+                                      loadController: _loadController,
+                                      onTap: () async {
+                                        await showGalleryFullscreenViewer(
+                                          context,
+                                          urls: state.urls,
+                                          initialIndex: index,
+                                        );
+                                      },
+                                    );
+                                  },
+                                  childCount: state.urls.length +
+                                      (state.isLoadingMore ? cols : 0),
+                                ),
+                              ),
                             ),
-                          SliverToBoxAdapter(
-                            child: _BottomStatus(
-                              isLoadingMore: state.isLoadingMore,
-                              hasMore: state.hasMore,
-                              onRetry: () => controller.loadNextBatch(batchSize),
+                            if (state.urls.isEmpty && state.isLoading)
+                              const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Center(child: CircularProgressIndicator()),
+                              ),
+                            SliverToBoxAdapter(
+                              child: _BottomStatus(
+                                isLoadingMore: state.isLoadingMore,
+                                hasMore: state.hasMore,
+                                onRetry: () => controller.loadNextBatch(batchSize),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -224,8 +256,15 @@ class _OverlayHeader extends StatelessWidget {
 }
 
 class _OverlayTile extends StatelessWidget {
-  const _OverlayTile({required this.url, required this.onTap});
+  const _OverlayTile({
+    required this.url,
+    required this.index,
+    required this.loadController,
+    required this.onTap,
+  });
   final String url;
+  final int index;
+  final GalleryLoadController loadController;
   final VoidCallback onTap;
 
   @override
@@ -237,8 +276,10 @@ class _OverlayTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: ProgressiveNetworkImage(
+          child: SequentialNetworkImage(
             url: url,
+            index: index,
+            controller: loadController,
             fit: BoxFit.cover,
           ),
         ),
